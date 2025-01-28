@@ -27,10 +27,6 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
-	// The mesh that will be attached to this actor
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dungeon Piece")
-	UStaticMeshComponent* DungeonMesh;
-
 	// The box component that will be used to check for collision with other dungeon pieces
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dungeon Piece")
 	UBoxComponent* BoxCollision;
@@ -54,5 +50,20 @@ public:
 	// function to set the size of the dungeon piece using the width, height and depth
 	UFUNCTION(BlueprintCallable, Category = "Dungeon Piece")
 	void SetSize(float NewWidth, float NewHeight, float NewDepth);
-	
+
+	// biome type of the dungeon piece
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dungeon Piece")
+	int32 BiomeType;
+
+	// each side of the dungeon piece will a number which will represent the type of piece that will be connected to it
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dungeon Piece")
+	TArray<int32> Sides;
+
+	// type of biome that the dungeon piece can be connected to
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dungeon Piece")
+	TArray<int32> BiomeTypes;
+
+	// location of the dungeon piece in the dungeon
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dungeon Piece")
+	FVector Location;
 };

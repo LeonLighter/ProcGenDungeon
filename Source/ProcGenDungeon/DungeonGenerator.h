@@ -71,6 +71,20 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Dungeon Generator")
 	void SpawnDungeonPieces();
 
+	// function to check if a dungeon piece can be placed at a certain location based on the biome type of the dungeon piece and if the sides of the dungeon piece match with the sides of the other dungeon pieces
+	// returns true if the dungeon piece can be placed at the location, false otherwise and rotates the dungeon piece then checks again if it can be placed until it has checked all possible rotations
+	UFUNCTION(BlueprintCallable, Category = "Dungeon Generator")
+	bool CanPlaceDungeonPiece(ADungeonPiece* DungeonPiece, ADungeonPiece* OtherDungeonPiece);
 	
+	// function to check if the sides of the dungeon piece match with the sides of the other dungeon pieces
+	UFUNCTION(BlueprintCallable, Category = "Dungeon Generator")
+	bool CheckSides(ADungeonPiece* DungeonPiece, ADungeonPiece* OtherDungeonPiece);
 
+	// function to check if the dungeon piece can be placed at the location based on the biome type of the dungeon piece
+	UFUNCTION(BlueprintCallable, Category = "Dungeon Generator")
+	bool CheckBiomeType(ADungeonPiece* DungeonPiece, ADungeonPiece* OtherDungeonPiece);
+
+	// function that will rotate the dungeon piece
+	UFUNCTION(BlueprintCallable, Category = "Dungeon Generator")
+	void RotateDungeonPiece(ADungeonPiece* DungeonPiece, int32 Rotation);
 };
