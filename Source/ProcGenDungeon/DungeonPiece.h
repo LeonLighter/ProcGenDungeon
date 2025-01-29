@@ -31,26 +31,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dungeon Piece")
 	UBoxComponent* BoxCollision;
 
-	// The width of the dungeon piece
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dungeon Piece")
-	float Width;
-
-	// The height of the dungeon piece
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dungeon Piece")
-	float Height;
-
-	// The depth of the dungeon piece
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dungeon Piece")
-	float Depth;
-
-	// The size of the dungeon piece
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dungeon Piece")
-	FVector Size;
-
-	// function to set the size of the dungeon piece using the width, height and depth
-	UFUNCTION(BlueprintCallable, Category = "Dungeon Piece")
-	void SetSize(float NewWidth, float NewHeight, float NewDepth);
-
+	
 	// biome type of the dungeon piece
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dungeon Piece")
 	int32 BiomeType;
