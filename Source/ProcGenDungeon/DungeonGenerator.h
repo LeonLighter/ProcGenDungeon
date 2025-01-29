@@ -1,18 +1,22 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
-// actor that will generate a dungeon.
-// We will use the wave function collapse algorithm to generate the dungeon.
-// The algorithm will take a set of dungeon pieces and will generate a dungeon using those pieces.
-
-
-
-
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "DungeonPiece.h"
 #include "DungeonGenerator.generated.h"
 
+USTRUCT()
+struct FGridCell
+{
+    GENERATED_BODY()
+
+    TArray<TSubclassOf<ADungeonPiece>> PossiblePieces;
+    TArray<int32> PossibleRotations;
+    ADungeonPiece* PlacedPiece;
+    bool bCollapsed;
+
+    FGridCell() : PlacedPiece(nullptr), bCollapsed(false) {}
+};
 
 UCLASS()
 class PROCGENDUNGEON_API ADungeonGenerator : public AActor
@@ -20,71 +24,32 @@ class PROCGENDUNGEON_API ADungeonGenerator : public AActor
     GENERATED_BODY()
 
 public:
-    // Sets default values for this actor's properties
     ADungeonGenerator();
 
-protected:
-    // Called when the game starts or when spawned
-    virtual void BeginPlay() override;
-
-public:
-    // Called every frame
-    virtual void Tick(float DeltaTime) override;
-
-    // The dungeon pieces that will be used to generate the dungeon
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dungeon Generator")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dungeon Generation")
     TArray<TSubclassOf<ADungeonPiece>> DungeonPieces;
 
-    // The width of the dungeon
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dungeon Generator")
-    float Width;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dungeon Generation")
+    int32 GridSizeX = 10;
 
-    // The height of the dungeon
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dungeon Generator")
-    float Height;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dungeon Generation")
+    int32 GridSizeY = 10;
 
-    // The depth of the dungeon
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dungeon Generator")
-    float Depth;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dungeon Generation")
+    float TileSize = 1200.0f;
 
-    // The size of the dungeon
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dungeon Generator")
-    FVector Size;
+protected:
+    virtual void BeginPlay() override;
 
-    // The number of dungeon pieces that will be spawned in the dungeon
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dungeon Generator")
-    int32 NumDungeonPieces;
-
-    // The dungeon pieces that will be spawned in the dungeon
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dungeon Generator")
-    TArray<ADungeonPiece*> SpawnedDungeonPieces;
-
-    // function to set the size of the dungeon using the width, height and depth
-    UFUNCTION(BlueprintCallable, Category = "Dungeon Generator")
-    void SetSize(float NewWidth, float NewHeight, float NewDepth);
-
-    // function to generate the dungeon
-    UFUNCTION(BlueprintCallable, Category = "Dungeon Generator")
-    void GenerateDungeon();
-
-    // function to spawn the dungeon pieces in the dungeon
-    UFUNCTION(BlueprintCallable, Category = "Dungeon Generator")
-    void SpawnDungeonPieces();
-
-    // function to check if a dungeon piece can be placed at a certain location based on the biome type of the dungeon piece and if the sides of the dungeon piece match with the sides of the other dungeon pieces
-    // returns true if the dungeon piece can be placed at the location, false otherwise and rotates the dungeon piece then checks again if it can be placed until it has checked all possible rotations
-    UFUNCTION(BlueprintCallable, Category = "Dungeon Generator")
-    static bool CanPlaceDungeonPiece(ADungeonPiece* DungeonPiece, ADungeonPiece* OtherDungeonPiece);
+private:
+    TArray<TArray<FGridCell>> Grid;
     
-    // function to check if the sides of the dungeon piece match with the sides of the other dungeon pieces
-    UFUNCTION(BlueprintCallable, Category = "Dungeon Generator")
-    static bool CheckSides(ADungeonPiece* DungeonPiece, ADungeonPiece* OtherDungeonPiece);
-
-    // function to check if the dungeon piece can be placed at the location based on the biome type of the dungeon piece
-    UFUNCTION(BlueprintCallable, Category = "Dungeon Generator")
-    static bool CheckBiomeType(ADungeonPiece* DungeonPiece, ADungeonPiece* OtherDungeonPiece);
-
-    // function that will rotate the dungeon piece
-    UFUNCTION(BlueprintCallable, Category = "Dungeon Generator")
-    static void RotateDungeonPiece(ADungeonPiece* DungeonPiece, int32 Rotation);
+    void InitializeGrid();
+    void CollapseWaveFunction();
+    FGridCell* GetLowestEntropyCell();
+    void PropagateConstraints(int32 X, int32 Y);
+    bool IsValidPlacement(const TSubclassOf<ADungeonPiece>& Piece, int32 Rotation, int32 X, int32 Y);
+    void CollapseCellAndPropagate(FGridCell& Cell, int32 X, int32 Y);
+    bool AreConnectionsCompatible(const FTileConnector& A, const FTileConnector& B, int32 Direction);
+    FTileConnector GetRotatedConnections(const FTileConnector& Original, int32 Rotations);
 };

@@ -1,164 +1,224 @@
 ﻿// DungeonGenerator.cpp
-
 #include "DungeonGenerator.h"
-#include "Engine/World.h"
-#include "Kismet/KismetMathLibrary.h"
 
-// Sets default values
 ADungeonGenerator::ADungeonGenerator()
 {
-    PrimaryActorTick.bCanEverTick = true;
+    PrimaryActorTick.bCanEverTick = false;
 }
 
-// Called when the game starts or when spawned
 void ADungeonGenerator::BeginPlay()
 {
     Super::BeginPlay();
-
-    // Set random size for the dungeon
-    SetSize(FMath::RandRange(3000.0f, 10000.0f), FMath::RandRange(3000.0f, 10000.0f), 0.0f);
-
-    // Set random number of dungeon pieces between 50 and 100
-    NumDungeonPieces = FMath::RandRange(50, 100);
-
-    // Generate the dungeon
-    GenerateDungeon();
+    InitializeGrid();
+    CollapseWaveFunction();
 }
 
-// Called every frame
-void ADungeonGenerator::Tick(float DeltaTime)
+void ADungeonGenerator::InitializeGrid()
 {
-    Super::Tick(DeltaTime);
-}
-
-void ADungeonGenerator::SetSize(float NewWidth, float NewHeight, float NewDepth)
-{
-    Width = NewWidth;
-    Height = NewHeight;
-    Depth = NewDepth;
-    Size = FVector(Width, Height, Depth);
-}
-
-void ADungeonGenerator::GenerateDungeon()
-{
-    // Clear any previously spawned dungeon pieces
-    SpawnedDungeonPieces.Empty();
-
-    // Check if there are any Blueprints in the array
-    if (DungeonPieces.Num() == 0)
+    Grid.SetNum(GridSizeX);
+    for (int32 X = 0; X < GridSizeX; X++)
     {
-        UE_LOG(LogTemp, Error, TEXT("No DungeonPiece Blueprints found"));
-        return;
-    }
-
-    // Generate the dungeon layout using wave function collapse algorithm
-    for (int32 i = 0; i < NumDungeonPieces; i++)
-    {
-        // Select a random Blueprint from the array
-        int32 RandomIndex = FMath::RandRange(0, DungeonPieces.Num() - 1);
-        TSubclassOf<ADungeonPiece> SelectedBlueprint = DungeonPieces[RandomIndex];
-
-        // Spawn the dungeon piece using the selected Blueprint
-        ADungeonPiece* NewDungeonPiece = GetWorld()->SpawnActor<ADungeonPiece>(SelectedBlueprint);
-        if (NewDungeonPiece)
+        Grid[X].SetNum(GridSizeY);
+        for (int32 Y = 0; Y < GridSizeY; Y++)
         {
-            // Place the first piece around the origin
-            if (i == 0)
-            {
-                NewDungeonPiece->SetActorLocation(FVector(FMath::RandRange(-100.0f, 100.0f), FMath::RandRange(-100.0f, 100.0f), 0.0f));
-            }
-            SpawnedDungeonPieces.Add(NewDungeonPiece);
+            Grid[X][Y].PossiblePieces = DungeonPieces;
+            Grid[X][Y].PossibleRotations = {0, 1, 2, 3}; // 0, 90, 180, 270 degrees
         }
     }
-
-    // Spawn the dungeon pieces
-    SpawnDungeonPieces();
 }
 
-void ADungeonGenerator::SpawnDungeonPieces()
+FGridCell* ADungeonGenerator::GetLowestEntropyCell()
 {
-    TSet<FVector> OccupiedLocations;
+    FGridCell* LowestEntropyCell = nullptr;
+    int32 LowestEntropy = MAX_int32;
 
-    for (int32 i = 0; i < SpawnedDungeonPieces.Num(); i++)
+    for (int32 X = 0; X < GridSizeX; X++)
     {
-        ADungeonPiece* DungeonPiece = SpawnedDungeonPieces[i];
-        bool bPlaced = false;
-
-        while (!bPlaced)
+        for (int32 Y = 0; Y < GridSizeY; Y++)
         {
-            FVector Location;
-            if (i == 0)
+            FGridCell& Cell = Grid[X][Y];
+            if (!Cell.bCollapsed)
             {
-                // Place the first piece around the origin
-                Location = FVector(FMath::RandRange(-100.0f, 100.0f), FMath::RandRange(-100.0f, 100.0f), 0.0f);
-            }
-            else
-            {
-                // Find a valid location next to an already placed piece (no diagonals)
-                ADungeonPiece* PreviousPiece = SpawnedDungeonPieces[FMath::RandRange(0, i - 1)];
-                FVector Offset;
-                switch (FMath::RandRange(0, 3))
+                int32 Entropy = Cell.PossiblePieces.Num() * Cell.PossibleRotations.Num();
+                if (Entropy > 0 && Entropy < LowestEntropy)
                 {
-                case 0: Offset = FVector(PreviousPiece->BoxCollision->GetScaledBoxExtent().X * 2, 0, 0); break; // East
-                case 1: Offset = FVector(-PreviousPiece->BoxCollision->GetScaledBoxExtent().X * 2, 0, 0); break; // West
-                case 2: Offset = FVector(0, PreviousPiece->BoxCollision->GetScaledBoxExtent().Y * 2, 0); break; // North
-                case 3: Offset = FVector(0, -PreviousPiece->BoxCollision->GetScaledBoxExtent().Y * 2, 0); break; // South
+                    LowestEntropy = Entropy;
+                    LowestEntropyCell = &Cell;
                 }
-                Location = PreviousPiece->GetActorLocation() + Offset;
-            }
-
-            if (!OccupiedLocations.Contains(Location))
-            {
-                DungeonPiece->SetActorLocation(Location);
-                OccupiedLocations.Add(Location);
-                bPlaced = true;
             }
         }
     }
+    return LowestEntropyCell;
 }
 
-bool ADungeonGenerator::CanPlaceDungeonPiece(ADungeonPiece* DungeonPiece, ADungeonPiece* OtherDungeonPiece)
+void ADungeonGenerator::CollapseWaveFunction()
 {
-    // Check if the sides and biome type match
-    return CheckSides(DungeonPiece, OtherDungeonPiece) && CheckBiomeType(DungeonPiece, OtherDungeonPiece);
-}
+    // Start with a random cell
+    int32 StartX = FMath::RandRange(0, GridSizeX - 1);
+    int32 StartY = FMath::RandRange(0, GridSizeY - 1);
+    CollapseCellAndPropagate(Grid[StartX][StartY], StartX, StartY);
 
-
-bool ADungeonGenerator::CheckSides(ADungeonPiece* DungeonPiece, ADungeonPiece* OtherDungeonPiece)
-{
-    // Check if the sides of the dungeon piece match with the sides of the other dungeon pieces
-    for (int32 i = 0; i < DungeonPiece->Sides.Num(); i++)
+    // Continue collapsing cells until done
+    while (FGridCell* Cell = GetLowestEntropyCell())
     {
-        int32 OtherSideIndex = (i + 2) % 4; // Opposite side index
-        if (DungeonPiece->Sides[i] != OtherDungeonPiece->Sides[OtherSideIndex])
+        for (int32 X = 0; X < GridSizeX; X++)
         {
-            return false;
+            for (int32 Y = 0; Y < GridSizeY; Y++)
+            {
+                if (&Grid[X][Y] == Cell)
+                {
+                    CollapseCellAndPropagate(Grid[X][Y], X, Y);
+                }
+            }
         }
     }
+}
+
+void ADungeonGenerator::CollapseCellAndPropagate(FGridCell& Cell, int32 X, int32 Y)
+{
+    if (Cell.PossiblePieces.Num() == 0) return;
+
+    // Randomly select a piece and rotation
+    int32 PieceIndex = FMath::RandRange(0, Cell.PossiblePieces.Num() - 1);
+    int32 RotationIndex = FMath::RandRange(0, Cell.PossibleRotations.Num() - 1);
+
+    // Spawn the piece
+    FVector Location(X * TileSize, Y * TileSize, 0);
+    ADungeonPiece* NewPiece = GetWorld()->SpawnActor<ADungeonPiece>(
+        Cell.PossiblePieces[PieceIndex],
+        Location,
+        FRotator(0, Cell.PossibleRotations[RotationIndex] * 90, 0)
+    );
+
+    // Update cell state
+    Cell.PlacedPiece = NewPiece;
+    Cell.bCollapsed = true;
+    Cell.PossiblePieces.Empty();
+    Cell.PossibleRotations.Empty();
+
+    // Propagate constraints
+    PropagateConstraints(X, Y);
+}
+
+void ADungeonGenerator::PropagateConstraints(int32 X, int32 Y)
+{
+    TArray<TPair<int32, int32>> Directions = {
+        {0, 1},  // North
+        {1, 0},  // East
+        {0, -1}, // South
+        {-1, 0}  // West
+    };
+
+    for (const auto& Dir : Directions)
+    {
+        int32 NewX = X + Dir.Key;
+        int32 NewY = Y + Dir.Value;
+
+        if (NewX >= 0 && NewX < GridSizeX && NewY >= 0 && NewY < GridSizeY)
+        {
+            FGridCell& NeighborCell = Grid[NewX][NewY];
+            if (!NeighborCell.bCollapsed)
+            {
+                TArray<TSubclassOf<ADungeonPiece>> ValidPieces;
+                TArray<int32> ValidRotations;
+
+                // Check each possible piece and rotation for compatibility
+                for (auto& PossiblePiece : NeighborCell.PossiblePieces)
+                {
+                    for (int32 Rotation : NeighborCell.PossibleRotations)
+                    {
+                        if (IsValidPlacement(PossiblePiece, Rotation, NewX, NewY))
+                        {
+                            ValidPieces.AddUnique(PossiblePiece);
+                            ValidRotations.AddUnique(Rotation);
+                        }
+                    }
+                }
+
+                // Update possible pieces and rotations
+                NeighborCell.PossiblePieces = ValidPieces;
+                NeighborCell.PossibleRotations = ValidRotations;
+            }
+        }
+    }
+
+    // Debug: Afficher la grille avec draw debug box
+    DrawDebugBox(
+        GetWorld(),
+        FVector(X * TileSize, Y * TileSize, 0),
+        FVector(TileSize/2, TileSize/2, 10),
+        FColor::Yellow,
+        true,
+        -1,
+        0,
+        5
+    );
+    
+}
+
+bool ADungeonGenerator::IsValidPlacement(const TSubclassOf<ADungeonPiece>& Piece, int32 Rotation, int32 X, int32 Y)
+{
+    // Check compatibility with all placed neighbors
+    TArray<TPair<int32, int32>> Directions = {
+        {0, 1},  // North
+        {1, 0},  // East
+        {0, -1}, // South
+        {-1, 0}  // West
+    };
+
+    ADungeonPiece* DefaultPiece = Cast<ADungeonPiece>(Piece.GetDefaultObject());
+    if (!DefaultPiece) return false;
+
+    FTileConnector RotatedConnections = GetRotatedConnections(DefaultPiece->Connections, Rotation);
+
+    for (int32 Dir = 0; Dir < Directions.Num(); Dir++)
+    {
+        int32 CheckX = X + Directions[Dir].Key;
+        int32 CheckY = Y + Directions[Dir].Value;
+
+        if (CheckX >= 0 && CheckX < GridSizeX && CheckY >= 0 && CheckY < GridSizeY)
+        {
+            FGridCell& NeighborCell = Grid[CheckX][CheckY];
+            if (NeighborCell.PlacedPiece)
+            {
+                if (!AreConnectionsCompatible(RotatedConnections, NeighborCell.PlacedPiece->Connections, Dir))
+                {
+                    return false;
+                }
+            }
+        }
+    }
+
     return true;
 }
 
-bool ADungeonGenerator::CheckBiomeType(ADungeonPiece* DungeonPiece, ADungeonPiece* OtherDungeonPiece)
+FTileConnector ADungeonGenerator::GetRotatedConnections(const FTileConnector& Original, int32 Rotations)
 {
-    // Check if the biome type of the dungeon piece matches with the biome type of the other dungeon piece
-    for (int32 BiomeType : DungeonPiece->BiomeTypes)
+    FTileConnector Result = Original;
+    for (int32 i = 0; i < Rotations; i++)
     {
-        if (BiomeType == OtherDungeonPiece->BiomeType)
-        {
-            int32 Dice = FMath::RandRange(0, 100);
-            if (Dice >= 70)
-            {
-                return true;
-            }
-        }
+        int32 Temp = Result.North;
+        Result.North = Result.West;
+        Result.West = Result.South;
+        Result.South = Result.East;
+        Result.East = Temp;
     }
-    return false;
+    return Result;
 }
 
-
-
-void ADungeonGenerator::RotateDungeonPiece(ADungeonPiece* DungeonPiece, int32 Rotation)
+bool ADungeonGenerator::AreConnectionsCompatible(const FTileConnector& A, const FTileConnector& B, int32 Direction)
 {
-    FRotator NewRotation = FRotator(0.0f, Rotation * 90.0f, 0.0f);
-    DungeonPiece->SetActorRotation(NewRotation);
+    switch (Direction)
+    {
+    case 0: // North
+        return A.North == B.South;
+    case 1: // East
+        return A.East == B.West;
+    case 2: // South
+        return A.South == B.North;
+    case 3: // West
+        return A.West == B.East;
+    default:
+        return false;
+    }
 }
